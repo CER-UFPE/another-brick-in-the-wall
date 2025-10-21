@@ -1,0 +1,81 @@
+#!/bin/bash
+
+cat <<"EOF"
+# ██████╗███████╗██████╗       ██╗   ██╗███████╗██████╗ ███████╗
+# ██╔════╝██╔════╝██╔══██╗      ██║   ██║██╔════╝██╔══██╗██╔════╝
+# ██║     █████╗  ██████╔╝█████╗██║   ██║█████╗  ██████╔╝█████╗  
+# ██║     ██╔══╝  ██╔══██╗╚════╝██║   ██║██╔══╝  ██╔═══╝ ██╔══╝  
+# ╚██████╗███████╗██║  ██║      ╚██████╔╝██║     ██║     ███████╗
+#  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝ 
+EOF
+
+# ----------------------------
+# CONFIGURAÇÕES MANUAIS
+# ----------------------------
+
+read -p "Digite o ID do template base (ex: 102): " TEMPLATE_ID
+read -p "Digite o novo ID do container (ex: 105): " NOVO_ID
+read -p "Prefixo do hostname (ex: meucontainer): " HOST_PREFIX
+read -p "Digite o domínio (ex: cer.ufpe.br): " DOMINIO
+read -p "Digite o servidor FreeIPA (ex: iam.cer.ufpe.br): " SERVIDOR_IPA
+
+# Realm derivado do domínio (em maiúsculo)
+REALM=$(echo "$DOMINIO" | tr '[:lower:]' '[:upper:]')
+
+# Coleta segura das credenciais FreeIPA
+echo ""
+read -p "Digite o usuário admin do FreeIPA: " USUARIO_ADMIN
+read -s -p "Digite a senha do usuário '$USUARIO_ADMIN': " SENHA_ADMIN
+echo ""
+
+# Gerar hostname completo
+HOSTNAME_FULL="$HOST_PREFIX$NOVO_ID.$DOMINIO"
+echo ""
+echo "==> Clonando container LXC do template $TEMPLATE_ID para ID $NOVO_ID com hostname $HOSTNAME_FULL..."
+pct clone $TEMPLATE_ID $NOVO_ID --hostname $HOSTNAME_FULL
+
+if ! pct config $NOVO_ID &>/dev/null; then
+  echo "❌ Falha ao criar o container com ID $NOVO_ID. Verifique se o ID já existe ou se o template está correto."
+  exit 1
+fi
+
+echo "==> Iniciando container $NOVO_ID..."
+pct start $NOVO_ID
+
+echo "==> Aguardando container iniciar..."
+sleep 5
+
+echo "==> Configurando hostname FQDN dentro do container..."
+pct exec "$NOVO_ID" -- hostnamectl set-hostname "$HOSTNAME_FULL"
+
+echo "==> Corrigindo /etc/hosts dentro do container..."
+pct exec "$NOVO_ID" -- bash -c "echo '127.0.1.1   $HOSTNAME_FULL ${HOSTNAME_FULL%%.*}' >> /etc/hosts"
+
+echo "==> Removendo instalação antiga do FreeIPA (se houver)..."
+pct exec "$NOVO_ID" -- ipa-client-install --uninstall -U || true
+
+echo "==> Configurando Kerberos automaticamente no container..."
+
+pct exec "$NOVO_ID" -- bash -c "
+echo 'krb5-config krb5-config/default_realm string $REALM' | debconf-set-selections
+echo 'krb5-config krb5-config/kerberos_servers string $SERVIDOR_IPA' | debconf-set-selections
+echo 'krb5-config krb5-config/admin_server string $SERVIDOR_IPA' | debconf-set-selections
+DEBIAN_FRONTEND=noninteractive apt install -y freeipa-client krb5-user
+"
+
+echo "==> Registrando container no FreeIPA (automático)..."
+pct exec "$NOVO_ID" -- bash -c "
+ipa-client-install \
+    --hostname=$HOSTNAME_FULL \
+    --mkhomedir \
+    --enable-dns-updates \
+    --domain=$DOMINIO \
+    --server=$SERVIDOR_IPA \
+    --principal=$USUARIO_ADMIN \
+    --password=$SENHA_ADMIN \
+    --fixed-primary\
+    --unattended
+"
+
+echo ""
+echo "✅ Container $NOVO_ID com hostname $HOSTNAME_FULL criado e registrado no FreeIPA com sucesso!"
