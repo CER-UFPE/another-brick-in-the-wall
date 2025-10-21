@@ -1,16 +1,6 @@
 #!/bin/bash
 set -e
 
-# ----------------------------------------------
-# Default values for domain join
-# ----------------------------------------------
-JOIN_DOMAIN=0
-DOMAIN="cer.ufpe.br"
-SERVER="iam.cer.ufpe.br" # 150.161.56.119
-REALM="CER.UFPE.BR"
-# ----------------------------------------------
-
-
 cat << 'EOF'
  ██████╗███████╗██████╗       ██╗   ██╗███████╗██████╗ ███████╗
 ██╔════╝██╔════╝██╔══██╗      ██║   ██║██╔════╝██╔══██╗██╔════╝
@@ -32,34 +22,6 @@ if [ -z "${SUDO_USER:-}" ]; then
     exit 1
 fi
 
-# Args/flags:
-#   --join-domain            Habilita o join no FreeIPA
-#   -h|--help                Ajuda
-usage() {
-  echo "Usage: sudo $0 [--join-domain]"
-  exit 1
-}
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --join-domain)
-      JOIN_DOMAIN=1
-      shift
-      ;;
-    --ipa-adm-pwd)
-      IPA_ADM_PWD="$2"
-      shift 2
-      ;;
-    -h|--help)
-      usage
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      usage
-      ;;
-  esac
-done
-
 # Update the system
 echo "- Updating the system..."
 apt update && apt upgrade -y
@@ -67,8 +29,7 @@ apt update && apt upgrade -y
 # install sshd if not present
 if ! dpkg -s openssh-server >/dev/null 2>&1; then
     echo "- Instalando OpenSSH server..."
-    apt-get install -y openssh-server
-    # Opcional: habilitar e iniciar o serviço imediatamente
+    apt install -y openssh-server
     systemctl enable --now ssh
 fi
 
@@ -98,16 +59,14 @@ systemctl restart sshd
 # Enable and start firewalld
 echo "- Enabling and starting UFW..."
 apt install -y ufw
-# deny all incoming by default, allow all outgoing
+
+echo "-- drop all incoming connections except SSH and rate limit SSH..."
 ufw default deny incoming
 ufw default allow outgoing
-# Permitir HTTP, HTTPS e SSH
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw allow 22/tcp
 ufw limit ssh comment 'Rate limit SSH connections'
-
-# activate UFW
 ufw enable
 
 # Enable and start fail2ban
@@ -131,36 +90,13 @@ chmod 644 /etc/passwd
 chmod 600 /etc/shadow
 
 # Enable automatic security updates
+echo "- Enabling automatic security updates..."
 apt install unattended-upgrades -y
 dpkg-reconfigure -plow unattended-upgrades
 
 # reload ssh and firewalld to apply all changes
-echo "- Reloading sshd and firewalld to apply all changes..."
+echo "- Reloading sshd and UFW to apply all changes..."
 systemctl restart sshd
 ufw reload
 
-# Join FreeIPA domain if flag is set
-if [[ "$JOIN_DOMAIN" -eq 1 ]]; then
-    if [[ -z "$DOMAIN" || -z "$SERVER" || -z "$REALM" || -z "$IPA_ADM_PWD" ]]; then
-        echo "Error: --join-domain requires --ipa-adm-pwd." >&2
-        usage
-    fi
-    echo "- Installing IPA client..."
-    apt install freeipa-client -y
-    echo "- Joining FreeIPA domain $DOMAIN..."
-    ipa-client-install \
-	  --domain="$DOMAIN" \
-	  --server="$SERVER" \
-	  --realm="$REALM" \
-	  --mkhomedir \
-	  --force-join \
-	  --principal=admin \
-	  --password="$IPA_ADM_PWD" \
-	  --unattended
-    echo "- FreeIPA join completed."
-else
-    echo "- Skipping FreeIPA domain join. Use --join-domain with --domain/--server/--realm to enable."
-fi
-
 echo "Hardening process completed successfully."
-

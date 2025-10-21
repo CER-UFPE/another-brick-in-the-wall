@@ -22,38 +22,6 @@ if [ -z "${SUDO_USER:-}" ]; then
     exit 1
 fi
 
-# Args/flags:
-#   --join-domain            Habilita o join no FreeIPA
-#   --domain <DOMAIN>        Ex: example.com
-#   --server <SERVER>        Ex: ipa.example.com
-#   --realm <REALM>          Ex: EXAMPLE.COM
-#   -h|--help                Ajuda
-usage() {
-  echo "Usage: sudo $0 [--join-domain]"
-  exit 1
-}
-
-JOIN_DOMAIN=0
-DOMAIN="cer.ufpe.br"
-SERVER="150.161.56.119" # iam.cer.ufpe.br
-REALM="CER.UFPE.BR"
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --join-domain)
-      JOIN_DOMAIN=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      usage
-      ;;
-  esac
-done
-
 # Update the system
 echo "- Updating the system..."
 dnf update -y
@@ -62,6 +30,7 @@ dnf update -y
 if ! rpm -q openssh-server &>/dev/null; then
     echo "- Installing OpenSSH server..."
     dnf install -y openssh-server
+    systemctl enable --now sshd
 fi
 
 # Desable root SSH login
@@ -136,20 +105,5 @@ EOL
 echo "- Reloading sshd and firewalld to apply all changes..."
 systemctl reload sshd
 firewall-cmd --reload
-
-# Join FreeIPA domain if flag is set
-if [[ "$JOIN_DOMAIN" -eq 1 ]]; then
-    if [[ -z "$DOMAIN" || -z "$SERVER" || -z "$REALM" ]]; then
-        echo "Error: --join-domain requires --domain, --server and --realm." >&2
-        usage
-    fi
-    echo "- Installing IPA client..."
-    dnf install -y ipa-client
-    echo "- Joining FreeIPA domain $DOMAIN..."
-    ipa-client-install --domain="$DOMAIN" --server="$SERVER" --realm="$REALM" --mkhomedir --force-join -U
-    echo "- FreeIPA join completed."
-else
-    echo "- Skipping FreeIPA domain join. Use --join-domain with --domain/--server/--realm to enable."
-fi
 
 echo "Hardening process completed successfully."
