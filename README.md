@@ -34,6 +34,7 @@ Parametros que ter antes de executar o script:
 ```bash
 sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/CER-UFPE/another-brick-in-the-wall/refs/heads/main/scripts/join-domain.sh)"
 ```
+
 # Configuração da Infiniband após formatação e instalação do Proxmox VE
 
 ## **Passo 1 — Atualizar o sistema e instalar as bibliotecas necessárias**
@@ -41,4 +42,21 @@ sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/CER-UFPE/another-bri
 ```bash
 apt update
 apt install infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
+```
+## Passo 2 — Verificar se a interface da Infiniband foi criada
+```bash
+ibv_devinfo
+ip a
+```
+## Passo 3 — Criar a interface no Proxmox para configurar a Infiniband
+```bash
+nano /etc/network/interfaces
+```
+### Adicione a interface ibp5s0:
+```bash
+auto ibp5s0
+iface ibp5s0 inet static
+    address 192.168.1.x/24
+    mtu 65507
+    pre-up echo connected > /sys/class/net/ibp5s0/mode
 ```
