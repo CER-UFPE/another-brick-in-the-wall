@@ -36,6 +36,8 @@ sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/CER-UFPE/another-bri
 ```
 
 # Configuração da Infiniband após formatação e instalação do Proxmox VE
+A Infiniband (IB) é uma tecnologia de interconexão de alta performance desenvolvida para fornecer baixa latência e alta largura de banda na comunicação entre servidores, storages e nós de clusters.
+Ela é amplamente utilizada em ambientes de computação de alto desempenho (HPC), data centers e infraestruturas virtualizadas, como o Proxmox VE, permitindo que múltiplos nós troquem dados de forma extremamente rápida e eficiente.
 
 ## **Passo 1 — Atualizar o sistema e instalar as bibliotecas necessárias**
 
