@@ -34,3 +34,11 @@ Parametros que ter antes de executar o script:
 ```bash
 sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/CER-UFPE/another-brick-in-the-wall/refs/heads/main/scripts/join-domain.sh)"
 ```
+# Configuração da Infiniband após formatação e instalação do Proxmox VE
+
+## **Passo 1 — Atualizar o sistema e instalar as bibliotecas necessárias**
+
+```bash
+apt update
+apt install infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
+```
