@@ -53,10 +53,32 @@ ip a
 nano /etc/network/interfaces
 ```
 ### Adicione a interface ibp5s0:
+### Alterar o "x"
 ```bash
 auto ibp5s0
 iface ibp5s0 inet static
     address 192.168.1.x/24
     mtu 65507
     pre-up echo connected > /sys/class/net/ibp5s0/mode
+```
+### Para salvar e sair:
+```bash
+CTRL + O
+CTRL + X
+```
+## Passo 4 - Aplicar as alterações:
+```bash
+ifdown ibp5s0 && ifup ibp5s0
+```
+
+## Passo 5 — Testar a comunicação:
+### Alterar o "x":
+```bash
+ping 192.168.1.x
+```
+
+## Passo 6 — Adicionar o nó configurado no host:
+### Alterar o "x"
+```bash
+192.168.1.x coiotex.cer.ufpe.br coiotex
 ```
