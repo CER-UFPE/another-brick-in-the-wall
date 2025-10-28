@@ -1,0 +1,61 @@
+#!/bin/bash
+# ==============================================
+# Script de configuração automática da Infiniband no Proxmox VE
+# Repositório: CER-UFPE/another-brick-in-the-wall
+# ==============================================
+
+set -e  # Para o script se algo falhar
+
+# === Funções auxiliares ===
+erro() {
+  echo "❌ Erro: $1"
+  exit 1
+}
+
+echo "=== [1/6] Atualizando sistema e instalando pacotes necessários ==="
+apt update -y
+apt install -y infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils || erro "Falha na instalação dos pacotes."
+
+echo "=== [2/6] Verificando interfaces Infiniband detectadas ==="
+IB_INTERFACE=$(ibv_devinfo | grep "hca_id" | awk '{print $2}' | head -n 1)
+if [ -z "$IB_INTERFACE" ]; then
+  echo "⚠️ Nenhuma interface Infiniband detectada automaticamente."
+  read -p "Digite o nome da interface manualmente (ex: ibp5s0): " IB_INTERFACE
+else
+  echo "✅ Interface detectada: $IB_INTERFACE"
+fi
+
+ip a | grep "$IB_INTERFACE" || echo "⚠️ Interface $IB_INTERFACE ainda não configurada."
+
+echo "=== [3/6] Configuração de IP ==="
+read -p "Digite o IP desejado para a interface ($IB_INTERFACE), ex: 192.168.1.10: " IB_IP
+if [ -z "$IB_IP" ]; then
+  erro "IP inválido."
+fi
+
+# === Adiciona configuração no arquivo ===
+echo "=== [4/6] Aplicando configuração de rede ==="
+cat <<EOF >> /etc/network/interfaces
+
+# Configuração automática da Infiniband
+auto $IB_INTERFACE
+iface $IB_INTERFACE inet static
+    address $IB_IP/24
+    mtu 65507
+    pre-up echo connected > /sys/class/net/$IB_INTERFACE/mode
+EOF
+
+# Reinicia a interface
+ifdown $IB_INTERFACE 2>/dev/null || true
+ifup $IB_INTERFACE || erro "Falha ao subir a interface $IB_INTERFACE."
+
+echo "=== [5/6] Teste de conectividade ==="
+read -p "Digite o IP de outro nó para testar o ping (ex: 192.168.1.11): " TARGET_IP
+if [ -n "$TARGET_IP" ]; then
+  ping -c 4 "$TARGET_IP" || echo "⚠️ Não foi possível pingar $TARGET_IP — verifique a conexão."
+fi
+
+echo "=== [6/6] Configuração concluída com sucesso ==="
+echo "✅ Interface configurada: $IB_INTERFACE"
+echo "✅ IP atribuído: $IB_IP"
+
