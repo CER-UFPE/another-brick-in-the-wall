@@ -24,11 +24,11 @@ nano /etc/network/interfaces
 ### Adicione a interface ibp5s0:
 Alterar o "x"
 ```bash
-auto ibp5s0
-iface ibp5s0 inet static
+auto ibpxs0
+iface ibpxs0 inet static
     address 192.168.1.x/24
     mtu 65507
-    pre-up echo connected > /sys/class/net/ibp5s0/mode
+    pre-up echo connected > /sys/class/net/ibpxs0/mode
 ```
 Para salvar e sair:
 ```bash
@@ -37,8 +37,9 @@ CTRL + X
 ```
 
 ## Passo 5 - Aplicar as alterações:
+Alterar o "x"
 ```bash
-ifdown ibp5s0 && ifup ibp5s0
+ifdown ibpxs0 && ifup ibpxs0
 ```
 
 ## Passo 6 — Testar a comunicação:
