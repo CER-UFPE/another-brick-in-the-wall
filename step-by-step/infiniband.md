@@ -48,6 +48,3 @@ Alterar o "x"
 192.168.1.x coiotex.cer.ufpe.br coiotex
 ```
 
-```bash
-bash <(curl -s https://raw.githubusercontent.com/CER-UFPE/another-brick-in-the-wall/main/scripts/config-infiniband)
-```
