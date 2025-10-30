@@ -36,18 +36,18 @@ CTRL + X
 modprobe ib_ipoib
 ```
 
-## Passo 4 - Aplicar as alterações:
+## Passo 5 - Aplicar as alterações:
 ```bash
 ifdown ibp5s0 && ifup ibp5s0
 ```
 
-## Passo 5 — Testar a comunicação:
+## Passo 6 — Testar a comunicação:
 Alterar o "x":
 ```bash
 ping 192.168.1.x
 ```
 
-## Passo 6 — Adicionar o nó configurado no host:
+## Passo 7 — Adicionar o nó configurado no host:
 Alterar o "x"
 ```bash
 192.168.1.x coiotex.cer.ufpe.br coiotex
