@@ -13,7 +13,11 @@ apt install infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs
 ibv_devinfo
 ip a
 ```
-## Passo 3 — Criar a interface no Proxmox para configurar a Infiniband
+## Passo 3 - Carregue o módulo IPoIB:
+```bash
+modprobe ib_ipoib
+```
+## Passo 4 — Criar a interface no Proxmox para configurar a Infiniband
 ```bash
 nano /etc/network/interfaces
 ```
@@ -30,10 +34,6 @@ Para salvar e sair:
 ```bash
 CTRL + O
 CTRL + X
-```
-## Passo 4 - Carregue o módulo IPoIB:
-```bash
-modprobe ib_ipoib
 ```
 
 ## Passo 5 - Aplicar as alterações:
