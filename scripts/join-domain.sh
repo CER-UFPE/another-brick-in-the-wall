@@ -138,6 +138,14 @@ else
     exit 1
 fi
 
+# Check if RHEL and update chronyd configuration
+if command -v dnf &> /dev/null; then
+  echo "- Updating chronyd configuration..."
+  sed -i 's/^OPTIONS=.*/OPTIONS="-x"/' /etc/sysconfig/chronyd
+  systemctl restart chronyd
+  echo "- chronyd configuration updated."
+fi
+
 echo "2. Joining FreeIPA domain $DOMAIN..."
 ipa-client-install \
 	  --domain="$DOMAIN" \
