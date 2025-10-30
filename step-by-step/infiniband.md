@@ -31,6 +31,11 @@ Para salvar e sair:
 CTRL + O
 CTRL + X
 ```
+## Passo 4 - Carregue o módulo IPoIB:
+```bash
+modprobe ib_ipoib
+```
+
 ## Passo 4 - Aplicar as alterações:
 ```bash
 ifdown ibp5s0 && ifup ibp5s0
