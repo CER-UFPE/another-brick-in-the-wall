@@ -128,7 +128,7 @@ echo "1. Installing IPA client..."
 
 if command -v dnf &> /dev/null; then
     # RHEL/CentOS/Fedora
-    dnf install -y ipa-client
+    dnf install -y freeipa-client
 elif command -v apt-get &> /dev/null; then
     # Debian/Ubuntu
     apt-get update
