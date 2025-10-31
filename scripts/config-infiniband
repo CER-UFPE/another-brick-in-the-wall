@@ -21,22 +21,22 @@ sleep 1
 ### PASSO 0 — Perguntas ao usuário ###
 read -p "Digite o endereço IP para atribuir à interface Infiniband (ex: 192.168.1.10): " IP_ADDR
 read -p "Digite o hostname/FQDN a ser adicionado no /etc/hosts (ex: node1.cluster.intra): " HOST_FQDN
-read -p "Digite o IP de teste (ping) do outro nó: " TEST_IP
+read -p "Digite o IP de teste (ping) do outro nó (ex: 192.168.1.1 ou coiote1): " TEST_IP
 
 ### PASSO 1 — Atualizar sistema e instalar pacotes IB ###
-echo "[1/7] Instalando pacotes InfiniBand..."
+echo "[1/6] Instalando pacotes InfiniBand..."
 apt update -y
 apt install -y infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
 
 ### PASSO 2 — Carregar módulo IPoIB ###
-echo "[2/7] Carregando módulo ib_ipoib..."
+echo "[2/6] Carregando módulo ib_ipoib..."
 modprobe ib_ipoib
 echo "✅ Módulo carregado."
 
 
 
 ### PASSO 3 — Detectar automaticamente a interface IB ###
-echo "[3/7] Detectando interface Infiniband..."
+echo "[3/6] Detectando interface Infiniband..."
 
 # Primeira tentativa: interfaces que começam com "ib"
 IB_IFACE=$(ls /sys/class/net | grep -E "^ib" | head -n 1)
@@ -56,7 +56,7 @@ sleep 1
 
 
 ### PASSO 4 — Criar interface no /etc/network/interfaces ###
-echo "[4/7] Configurando interface $IB_IFACE no /etc/network/interfaces ..."
+echo "[4/6] Configurando interface $IB_IFACE no /etc/network/interfaces ..."
 
 cp /etc/network/interfaces /etc/network/interfaces.bak_$(date +%F_%H-%M)
 
@@ -75,11 +75,20 @@ echo "✅ Interface adicionada ao /etc/network/interfaces."
 
 
 ### PASSO 5 — Aplicar alterações ###
-echo "[5/7] Reiniciando interface $IB_IFACE..."
+echo "[5/6] Reiniciando interface $IB_IFACE..."
 ifdown $IB_IFACE 2>/dev/null
 ifup $IB_IFACE
 
 
 ### PASSO 6 — Testar comunicação ###
-echo "[6/7] Testando ping para $TEST_IP ..."
-pin
+echo "[6/6] Testando ping para $TEST_IP ..."
+ping -c 4 $TEST_IP
+
+
+echo
+echo "=============================================="
+echo "✅ CONFIGURAÇÃO FINALIZADA COM SUCESSO!"
+echo "Interface usada: $IB_IFACE"
+echo "IP configurado: $IP_ADDR"
+echo "Alterar o host (ex: 192.168.1.x coiotex.cer.ufpe.br coiotex)!"
+echo "=============================================="
