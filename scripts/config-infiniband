@@ -13,58 +13,73 @@ cat <<"EOF"
 #  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝ 
 EOF
 
-set -e  # Para o script se algo falhar
+echo "=============================================="
+echo " CONFIGURAÇÃO AUTOMÁTICA DE INFINIBAND PROXMOX"
+echo "=============================================="
+sleep 1
 
-# === Funções auxiliares ===
-erro() {
-  echo "❌ Erro: $1"
-  exit 1
-}
+### PASSO 0 — Perguntas ao usuário ###
+read -p "Digite o endereço IP para atribuir à interface Infiniband (ex: 192.168.1.10): " IP_ADDR
+read -p "Digite o hostname/FQDN a ser adicionado no /etc/hosts (ex: node1.cluster.intra): " HOST_FQDN
+read -p "Digite o IP de teste (ping) do outro nó: " TEST_IP
 
-echo "=== [1/6] Atualizando sistema e instalando pacotes necessários ==="
+### PASSO 1 — Atualizar sistema e instalar pacotes IB ###
+echo "[1/7] Instalando pacotes InfiniBand..."
 apt update -y
-apt install -y infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils || erro "Falha na instalação dos pacotes."
+apt install -y infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
 
-echo "=== [2/6] Verificando interfaces Infiniband detectadas ==="
-IB_INTERFACE=$(ibv_devinfo | grep "hca_id" | awk '{print $2}' | head -n 1)
-if [ -z "$IB_INTERFACE" ]; then
-  echo "⚠️ Nenhuma interface Infiniband detectada automaticamente."
-  read -p "Digite o nome da interface manualmente (ex: ibp5s0): " IB_INTERFACE
-else
-  echo "✅ Interface detectada: $IB_INTERFACE"
+### PASSO 2 — Carregar módulo IPoIB ###
+echo "[2/7] Carregando módulo ib_ipoib..."
+modprobe ib_ipoib
+echo "✅ Módulo carregado."
+
+
+
+### PASSO 3 — Detectar automaticamente a interface IB ###
+echo "[3/7] Detectando interface Infiniband..."
+
+# Primeira tentativa: interfaces que começam com "ib"
+IB_IFACE=$(ls /sys/class/net | grep -E "^ib" | head -n 1)
+
+if [ -z "$IB_IFACE" ]; then
+    # Segunda tentativa: procurar "mlx5" / "ipoib"
+    IB_IFACE=$(ip -o link show | grep -E "mlx5|ipoib" | awk -F': ' '{print $2}' | head -n 1)
 fi
 
-ip a | grep "$IB_INTERFACE" || echo "⚠️ Interface $IB_INTERFACE ainda não configurada."
-
-echo "=== [3/6] Configuração de IP ==="
-read -p "Digite o IP desejado para a interface ($IB_INTERFACE), ex: 192.168.1.10: " IB_IP
-if [ -z "$IB_IP" ]; then
-  erro "IP inválido."
+if [ -z "$IB_IFACE" ]; then
+    echo "❌ Nenhuma interface Infiniband detectada!"
+    exit 1
 fi
 
-# === Adiciona configuração no arquivo ===
-echo "=== [4/6] Aplicando configuração de rede ==="
+echo "✅ Interface Infiniband detectada: $IB_IFACE"
+sleep 1
+
+
+### PASSO 4 — Criar interface no /etc/network/interfaces ###
+echo "[4/7] Configurando interface $IB_IFACE no /etc/network/interfaces ..."
+
+cp /etc/network/interfaces /etc/network/interfaces.bak_$(date +%F_%H-%M)
+
 cat <<EOF >> /etc/network/interfaces
 
-# Configuração automática da Infiniband
-auto $IB_INTERFACE
-iface $IB_INTERFACE inet static
-    address $IB_IP/24
+# --- Interface Infiniband configurada automaticamente ---
+auto $IB_IFACE
+iface $IB_IFACE inet static
+    address $IP_ADDR/24
     mtu 65507
-    pre-up echo connected > /sys/class/net/$IB_INTERFACE/mode
+    pre-up echo connected > /sys/class/net/$IB_IFACE/mode
+# --------------------------------------------------------
 EOF
 
-# Reinicia a interface
-ifdown $IB_INTERFACE 2>/dev/null || true
-ifup $IB_INTERFACE || erro "Falha ao subir a interface $IB_INTERFACE."
+echo "✅ Interface adicionada ao /etc/network/interfaces."
 
-echo "=== [5/6] Teste de conectividade ==="
-read -p "Digite o IP de outro nó para testar o ping (ex: 192.168.1.11): " TARGET_IP
-if [ -n "$TARGET_IP" ]; then
-  ping -c 4 "$TARGET_IP" || echo "⚠️ Não foi possível pingar $TARGET_IP — verifique a conexão."
-fi
 
-echo "=== [6/6] Configuração concluída com sucesso ==="
-echo "✅ Interface configurada: $IB_INTERFACE"
-echo "✅ IP atribuído: $IB_IP"
+### PASSO 5 — Aplicar alterações ###
+echo "[5/7] Reiniciando interface $IB_IFACE..."
+ifdown $IB_IFACE 2>/dev/null
+ifup $IB_IFACE
 
+
+### PASSO 6 — Testar comunicação ###
+echo "[6/7] Testando ping para $TEST_IP ..."
+pin
