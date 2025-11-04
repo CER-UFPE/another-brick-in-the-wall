@@ -63,9 +63,3 @@ Alterar o "x"
 ```bash
 192.168.1.x coiotex.cer.ufpe.br coiotex
 ```
-
-teste:
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/CER-UFPE/another-brick-in-the-wall/main/scripts/config-infiniband)
-```
-
