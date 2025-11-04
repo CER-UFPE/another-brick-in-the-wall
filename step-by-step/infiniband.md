@@ -46,7 +46,7 @@ ifdown ibpxs0 && ifup ibpxs0
 Esse comando carrega automaticamente os modulos depois do reboot:
 ```bash
 echo "mlx4_ib" >> /etc/modules
-echo "ib_ipoib"   >> /etc/modules
+echo "ib_ipoib" >> /etc/modules
 ```
 
 ## Passo 7 — Testar a comunicação:
