@@ -43,10 +43,10 @@ ifdown ibpxs0 && ifup ibpxs0
 ```
 
 ## Passo 6 - Carregar modulos automaticamente:
-Adicionar o texto no nano /etc/modules para carregar automaticamente depois do reboot:
+Esse comando carrega automaticamente os modulos depois do reboot:
 ```bash
-mlx4_core
-mlx4_ib
+echo "mlx4_core" | sudo tee -a /etc/modules
+echo "mlx4_ib"   | sudo tee -a /etc/modules
 ```
 
 ## Passo 7 — Testar a comunicação:
