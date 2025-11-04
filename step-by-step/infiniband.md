@@ -42,13 +42,20 @@ Alterar o "x"
 ifdown ibpxs0 && ifup ibpxs0
 ```
 
-## Passo 6 — Testar a comunicação:
+## Passo 6 - Carregar modulos automaticamente:
+Adicionar o texto no nano /etc/modules para carregar automaticamente depois do reboot:
+```bash
+mlx4_core
+mlx4_ib
+```
+
+## Passo 7 — Testar a comunicação:
 Alterar o "x":
 ```bash
 ping 192.168.1.x
 ```
 
-## Passo 7 — Adicionar o nó configurado no host:
+## Passo 8 — Adicionar o nó configurado no host:
 Alterar o "x"
 ```bash
 192.168.1.x coiotex.cer.ufpe.br coiotex
