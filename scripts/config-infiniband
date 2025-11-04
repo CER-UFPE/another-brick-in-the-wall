@@ -13,82 +13,88 @@ cat <<"EOF"
 #  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝ 
 EOF
 
-echo "=============================================="
-echo " CONFIGURAÇÃO AUTOMÁTICA DE INFINIBAND PROXMOX"
-echo "=============================================="
-sleep 1
+echo "===== Configuração Automática de Infiniband ====="
 
-### PASSO 0 — Perguntas ao usuário ###
-read -p "Digite o endereço IP para atribuir à interface Infiniband (ex: 192.168.1.10): " IP_ADDR
-read -p "Digite o hostname/FQDN a ser adicionado no /etc/hosts (ex: node1.cluster.intra): " HOST_FQDN
-read -p "Digite o IP de teste (ping) do outro nó (ex: 192.168.1.1 ou coiote1): " TEST_IP
-
-### PASSO 1 — Atualizar sistema e instalar pacotes IB ###
-echo "[1/6] Instalando pacotes InfiniBand..."
-apt update -y
+# Passo 1 — Atualizar o sistema e instalar pacotes
+echo "[1/7] Atualizando sistema e instalando pacotes..."
+apt update
 apt install -y infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
 
-### PASSO 2 — Carregar módulo IPoIB ###
-echo "[2/6] Carregando módulo ib_ipoib..."
+# Passo 2 — Carregar módulo IPoIB
+echo "[2/7] Carregando módulo ib_ipoib..."
 modprobe ib_ipoib
-echo "✅ Módulo carregado."
 
-
-
-### PASSO 3 — Detectar automaticamente a interface IB ###
-echo "[3/6] Detectando interface Infiniband..."
-
-# Primeira tentativa: interfaces que começam com "ib"
-IB_IFACE=$(ls /sys/class/net | grep -E "^ib" | head -n 1)
+# Passo 3 — Verificar interface Infiniband
+echo "[3/7] Detectando interface Infiniband..."
+IB_IFACE=$(ip -o link show | awk -F': ' '/ibp/{print $2; exit}')
 
 if [ -z "$IB_IFACE" ]; then
-    # Segunda tentativa: procurar "mlx5" / "ipoib"
-    IB_IFACE=$(ip -o link show | grep -E "mlx5|ipoib" | awk -F': ' '{print $2}' | head -n 1)
-fi
-
-if [ -z "$IB_IFACE" ]; then
-    echo "❌ Nenhuma interface Infiniband detectada!"
+    echo "Nenhuma interface Infiniband encontrada!"
     exit 1
 fi
 
-echo "✅ Interface Infiniband detectada: $IB_IFACE"
-sleep 1
+echo "Interface detectada: $IB_IFACE"
+echo
+echo "ibv_devinfo:"
+ibv_devinfo
+echo
+ip a
 
+# Passo 4 — Usuário tem que informar o IP
+read -p "Digite o IP para a interface Infiniband (apenas o numero final "192.168.1.x" ex: 5): " IP_END
 
-### PASSO 4 — Criar interface no /etc/network/interfaces ###
-echo "[4/6] Configurando interface $IB_IFACE no /etc/network/interfaces ..."
+# Monta o endereço IP completo
+IP_FULL="192.168.1.$IP_END"
 
-cp /etc/network/interfaces /etc/network/interfaces.bak_$(date +%F_%H-%M)
+echo "[4/7] Configurando interface $IB_IFACE com IP $IP_FULL..."
 
+# Editar /etc/network/interfaces
 cat <<EOF >> /etc/network/interfaces
 
-# --- Interface Infiniband configurada automaticamente ---
 auto $IB_IFACE
 iface $IB_IFACE inet static
-    address $IP_ADDR/24
+    address $IP_FULL/24
     mtu 65507
     pre-up echo connected > /sys/class/net/$IB_IFACE/mode
-# --------------------------------------------------------
 EOF
 
-echo "✅ Interface adicionada ao /etc/network/interfaces."
+echo "Interface adicionada ao /etc/network/interfaces."
 
-
-### PASSO 5 — Aplicar alterações ###
-echo "[5/6] Reiniciando interface $IB_IFACE..."
+# Passo 5 — Aplicar alterações
+echo "[5/7] Reiniciando interface..."
 ifdown $IB_IFACE 2>/dev/null
 ifup $IB_IFACE
 
+# Passo 6 — Carregar módulos automaticamente
+echo "[6/7] Adicionando módulos ao /etc/modules..."
+echo "mlx4_ib" >> /etc/modules
+echo "ib_ipoib" >> /etc/modules
 
-### PASSO 6 — Testar comunicação ###
-echo "[6/6] Testando ping para $TEST_IP ..."
-ping -c 4 $TEST_IP
+# Passo 7 — Testar comunicação
+echo "[7/7] Testando comunicação com coiote1"
+ping -c 4 192.168.1.1
 
-
-echo
-echo "=============================================="
-echo "✅ CONFIGURAÇÃO FINALIZADA COM SUCESSO!"
-echo "Interface usada: $IB_IFACE"
-echo "IP configurado: $IP_ADDR"
-echo "Alterar o host (ex: 192.168.1.x coiotex.cer.ufpe.br coiotex)!"
-echo "=============================================="
+echo ""
+echo "============================================="
+echo " ✅ Configuração concluída com sucesso! "
+echo "============================================="
+echo ""
+echo " 🟢 A interface Infiniband foi configurada e adicionada ao arquivo:"
+echo "     /etc/network/interfaces"
+echo ""
+echo " 🟢 Os módulos necessários foram carregados e configurados para subir"
+echo "     automaticamente em todos os reboots:"
+echo "        - mlx4_ib"
+echo "        - ib_ipoib"
+echo ""
+echo " ✅ A interface configurada foi: $IB_IFACE"
+echo " ✅ Endereço aplicado: $IP_FULL"
+echo ""
+echo " ⚠️ Atenção!"
+echo " Você ainda precisa adicionar MANUALMENTE a seguinte linha a todos os "HOSTS":"
+echo ""
+echo "     $IP_FULL coiote$NODE_NUM.cer.ufpe.br coiote$NODE_NUM"
+echo ""
+echo " Após isso, sua Infiniband estará totalmente pronta para uso. 🚀"
+echo ""
+echo "============================================="
