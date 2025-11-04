@@ -8,15 +8,18 @@ Ela é amplamente utilizada em ambientes de computação de alto desempenho (HPC
 apt update
 apt install infiniband-diags ibutils rdmacm-utils libmlx4-1 libmlx5-1 libibverbs1 ibverbs-utils
 ```
-## Passo 2 — Verificar se a interface da Infiniband foi criada
+
+## Passo 2 - Carregue o módulo IPoIB:
+```bash
+modprobe ib_ipoib
+```
+
+## Passo 3 — Verificar se a interface da Infiniband foi criada
 ```bash
 ibv_devinfo
 ip a
 ```
-## Passo 3 - Carregue o módulo IPoIB:
-```bash
-modprobe ib_ipoib
-```
+
 ## Passo 4 — Criar a interface no Proxmox para configurar a Infiniband
 ```bash
 nano /etc/network/interfaces
