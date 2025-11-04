@@ -72,7 +72,7 @@ echo "ib_ipoib" >> /etc/modules
 
 # Passo 7 — Testar comunicação
 echo "[7/7] Testando comunicação com coiote1"
-ping -c 4 192.168.1.1
+ping -c 4 150.161.56.10
 
 echo ""
 echo "============================================="
