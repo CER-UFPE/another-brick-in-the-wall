@@ -1,0 +1,59 @@
+#!/bin/bash
+
+cat <<"EOF"
+# ██████╗███████╗██████╗       ██╗   ██╗███████╗██████╗ ███████╗
+# ██╔════╝██╔════╝██╔══██╗      ██║   ██║██╔════╝██╔══██╗██╔════╝
+# ██║     █████╗  ██████╔╝█████╗██║   ██║█████╗  ██████╔╝█████╗
+# ██║     ██╔══╝  ██╔══██╗╚════╝██║   ██║██╔══╝  ██╔═══╝ ██╔══╝
+# ╚██████╗███████╗██║  ██║      ╚██████╔╝██║     ██║     ███████╗
+#  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝
+# Script de Join FreeIPA - Rocky Linux 9
+EOF
+
+# ----------------------------
+# CONFIGURAÇÕES MANUAIS
+# ----------------------------
+read -p "Digite o hostname completo (ex: node01.cer.ufpe.br): " HOSTNAME_FULL
+read -p "Digite o domínio (ex: cer.ufpe.br): " DOMINIO
+read -p "Digite o servidor FreeIPA (ex: ipa.cer.ufpe.br): " SERVIDOR_IPA
+
+# Realm derivado do domínio (maiúsculo)
+REALM=$(echo "$DOMINIO" | tr '[:lower:]' '[:upper:]')
+
+# Coleta credenciais FreeIPA
+read -p "Digite o usuário admin do FreeIPA: " USUARIO_ADMIN
+read -s -p "Digite a senha do usuário '$USUARIO_ADMIN': " SENHA_ADMIN
+echo ""
+
+# Instala pacotes necessários
+echo "==> Instalando cliente FreeIPA e dependências..."
+dnf install -y freeipa-client krb5-workstation sssd oddjob oddjob-mkhomedir
+
+# Inicia oddjobd
+systemctl enable --now oddjobd
+
+# Configura hostname
+echo "==> Configurando hostname..."
+hostnamectl set-hostname "$HOSTNAME_FULL"
+
+# Remove instalação antiga, se houver
+ipa-client-install --uninstall -U || true
+
+# Join no domínio FreeIPA
+echo "==> Ingressando no FreeIPA..."
+echo "$SENHA_ADMIN" | ipa-client-install \
+    --hostname="$HOSTNAME_FULL" \
+    --mkhomedir \
+    --enable-dns-updates \
+    --domain="$DOMINIO" \
+    --server="$SERVIDOR_IPA" \
+    --principal="$USUARIO_ADMIN" \
+    --password="$SENHA_ADMIN" \
+    --unattended
+
+# Ativa sssd
+systemctl enable --now sssd
+
+echo ""
+echo "✅ Máquina $HOSTNAME_FULL ingressou no FreeIPA com sucesso!"
+echo "⚠️ Lembre-se de verificar se a home foi criada corretamente no primeiro login."
