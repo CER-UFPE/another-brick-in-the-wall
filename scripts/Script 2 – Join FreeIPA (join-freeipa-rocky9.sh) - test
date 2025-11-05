@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 cat <<"EOF"
 # ██████╗███████╗██████╗       ██╗   ██╗███████╗██████╗ ███████╗
@@ -7,7 +8,7 @@ cat <<"EOF"
 # ██║     ██╔══╝  ██╔══██╗╚════╝██║   ██║██╔══╝  ██╔═══╝ ██╔══╝
 # ╚██████╗███████╗██║  ██║      ╚██████╔╝██║     ██║     ███████╗
 #  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝
-# Script de Join FreeIPA - Rocky Linux 9
+# Script de Join FreeIPA - Rocky Linux 9 (LXC compatível)
 EOF
 
 # ----------------------------
@@ -25,23 +26,32 @@ read -p "Digite o usuário admin do FreeIPA: " USUARIO_ADMIN
 read -s -p "Digite a senha do usuário '$USUARIO_ADMIN': " SENHA_ADMIN
 echo ""
 
-# Instala pacotes necessários
+# ----------------------------
+# INSTALAR DEPENDÊNCIAS
+# ----------------------------
 echo "==> Instalando cliente FreeIPA e dependências..."
-dnf install -y freeipa-client krb5-workstation sssd oddjob oddjob-mkhomedir
+dnf install -y freeipa-client krb5-workstation sssd oddjob oddjob-mkhomedir chrony
 
-# Inicia oddjobd
+# Inicia e habilita oddjobd
 systemctl enable --now oddjobd
+
+# Habilita sssd
+systemctl enable --now sssd
 
 # Configura hostname
 echo "==> Configurando hostname..."
 hostnamectl set-hostname "$HOSTNAME_FULL"
 
-# Remove instalação antiga, se houver
+# Remove instalação antiga do cliente FreeIPA, se existir
 ipa-client-install --uninstall -U || true
 
-# Join no domínio FreeIPA
+# ----------------------------
+# INGRESSO NO DOMÍNIO
+# ----------------------------
 echo "==> Ingressando no FreeIPA..."
-echo "$SENHA_ADMIN" | ipa-client-install \
+
+# Usa --no-ntp para evitar erro de chronyd dentro do container
+if ! echo "$SENHA_ADMIN" | ipa-client-install \
     --hostname="$HOSTNAME_FULL" \
     --mkhomedir \
     --enable-dns-updates \
@@ -49,11 +59,15 @@ echo "$SENHA_ADMIN" | ipa-client-install \
     --server="$SERVIDOR_IPA" \
     --principal="$USUARIO_ADMIN" \
     --password="$SENHA_ADMIN" \
-    --unattended
+    --unattended \
+    --no-ntp; then
+    echo "❌ Falha ao ingressar no FreeIPA. Verifique /var/log/ipaclient-install.log"
+    exit 1
+fi
 
-# Ativa sssd
-systemctl enable --now sssd
-
+# ----------------------------
+# CONFIRMAÇÃO
+# ----------------------------
 echo ""
 echo "✅ Máquina $HOSTNAME_FULL ingressou no FreeIPA com sucesso!"
 echo "⚠️ Lembre-se de verificar se a home foi criada corretamente no primeiro login."
