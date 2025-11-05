@@ -70,4 +70,4 @@ fi
 # ----------------------------
 echo ""
 echo "✅ Máquina $HOSTNAME_FULL ingressou no FreeIPA com sucesso!"
-echo "⚠️ Lembre-se de verificar se a home foi criada corretamente no primeiro login."
+
