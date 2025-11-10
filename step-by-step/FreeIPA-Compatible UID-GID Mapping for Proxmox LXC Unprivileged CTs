@@ -1,4 +1,4 @@
-# LXC Unprivileged (Proxmox) – UID/GID Mapping 
+# FreeIPA-Compatible UID/GID Mapping for Proxmox LXC Unprivileged CTs
 
 Containers LXC unprivileged utilizam user namespaces, o que significa que os UIDs/GIDs internos não correspondem diretamente aos UIDs/GIDs reais do host.
 Por padrão, o Proxmox só mapeia 65536 IDs, o que funciona para usuários locais, mas não suporta ambientes como FreeIPA, onde os usuários possuem UIDs/GIDs muito altos (ex: 212800000+). 
