@@ -16,6 +16,13 @@ A seguinte linha:
 ```bash
 root:200000:500000000 
 ```
+Aplique as atualizações:
+
+```bash
+systemctl restart pvedaemon
+systemctl restart pve-cluster
+systemctl restart pvestatd
+```
 
 ## Configure cada CT unprivileged No Arquivo de configuração de CT: 
 
