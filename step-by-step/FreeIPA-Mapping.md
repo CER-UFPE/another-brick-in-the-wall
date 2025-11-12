@@ -22,7 +22,11 @@ Aplique as atualizações:
 systemctl restart lxc
 ```
 
-## Configure cada CT unprivileged No Arquivo de configuração de CT: 
+## Configure cada CT unprivileged No Arquivo de configuração de CT (Por favor rode no nó Proxmox não dentro do CT): 
+
+```bash
+pct stop <ID>
+```
 
 ```bash 
 nano /etc/pve/lxc/<CTID>.conf
@@ -37,5 +41,9 @@ lxc.idmap = g 0 100000 65536
 # mapping estendido para FreeIPA
 lxc.idmap = u 65536 200000 500000000
 lxc.idmap = g 65536 200000 500000000
-``` 
+```
+```bash
+pct start <ID>
+```
+
 Esse mapeamento permite que o CT utilize UIDs/GIDs altos provenientes do FreeIPA, mantendo toda a segurança do modo unprivileged, sem precisar tornar o CT privilegiado.
