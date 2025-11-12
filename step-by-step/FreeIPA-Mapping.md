@@ -11,17 +11,15 @@ Em todos os nós adicione em:
 nano /etc/subuid 
 nano /etc/subgid 
 ``` 
-A seguinte linha: 
+Substitua a linha por:
 
 ```bash
-root:200000:500000000 
+root:100000:500000000 
 ```
 Aplique as atualizações:
 
 ```bash
-systemctl restart pvedaemon
-systemctl restart pve-cluster
-systemctl restart pvestatd
+systemctl restart lxc
 ```
 
 ## Configure cada CT unprivileged No Arquivo de configuração de CT: 
