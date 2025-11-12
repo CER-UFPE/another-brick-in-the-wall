@@ -27,12 +27,13 @@ systemctl restart lxc
 ```bash
 pct stop <ID>
 ```
+Adicione em:
 
 ```bash 
 nano /etc/pve/lxc/<CTID>.conf
 ```
 
-Adicione: 
+As seguintes linhas: 
 
 ```bash
 # mapping padrão do Proxmox
@@ -42,6 +43,8 @@ lxc.idmap = g 0 100000 65536
 lxc.idmap = u 65536 200000 500000000
 lxc.idmap = g 65536 200000 500000000
 ```
+Inicie o CT:
+
 ```bash
 pct start <ID>
 ```
