@@ -22,6 +22,9 @@ if [ -z "${SUDO_USER:-}" ]; then
     exit 1
 fi
 
+# Set system timezone
+sudo timedatectl set-timezone America/Recife
+
 # Update the system
 echo "- Updating the system..."
 apt update && apt upgrade -y
