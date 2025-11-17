@@ -17,6 +17,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Set system timezone
+sudo timedatectl set-timezone America/Recife
+
 # Atualiza o sistema
 echo "- Atualizando o sistema..."
 dnf update -y
