@@ -146,7 +146,7 @@ if command -v dnf &> /dev/null; then
   echo "- chronyd configuration updated."
 elif command -v apt-get &> /dev/null; then
   echo "- Updating chronyd configuration..."
-  sed -i 's/^OPTIONS=.*/OPTIONS="-x"/' /etc/default/chrony
+  sed -i 's/^DAEMON_OPTS=.*/DAEMON_OPTS="-x"/' /etc/default/chrony
   sudo systemctl restart chrony
   echo "- chronyd configuration updated."
 fi
