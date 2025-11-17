@@ -2,12 +2,14 @@
 set -e
 
 cat << 'EOF'
+
  ██████╗███████╗██████╗       ██╗   ██╗███████╗██████╗ ███████╗
 ██╔════╝██╔════╝██╔══██╗      ██║   ██║██╔════╝██╔══██╗██╔════╝
 ██║     █████╗  ██████╔╝█████╗██║   ██║█████╗  ██████╔╝█████╗
 ██║     ██╔══╝  ██╔══██╗╚════╝██║   ██║██╔══╝  ██╔═══╝ ██╔══╝
 ╚██████╗███████╗██║  ██║      ╚██████╔╝██║     ██║     ███████╗
  ╚═════╝╚══════╝╚═╝  ╚═╝       ╚═════╝ ╚═╝     ╚═╝     ╚══════╝
+---------------------------------------------------------------
 Hardening Process for Servers in the Debian Family
 EOF
 
@@ -21,6 +23,9 @@ if [ -z "${SUDO_USER:-}" ]; then
     echo "Error: the script was not run via 'sudo'. Please run: sudo $0 [options]" >&2
     exit 1
 fi
+
+# Set system timezone
+sudo timedatectl set-timezone America/Recife
 
 # Update the system
 echo "- Updating the system..."
