@@ -144,6 +144,11 @@ if command -v dnf &> /dev/null; then
   sed -i 's/^OPTIONS=.*/OPTIONS="-x"/' /etc/sysconfig/chronyd
   systemctl restart chronyd
   echo "- chronyd configuration updated."
+elif command -v apt-get &> /dev/null; then
+  echo "- Updating chronyd configuration..."
+  sed -i 's/^OPTIONS=.*/OPTIONS="-x"/' /etc/default/chrony
+  sudo systemctl restart chrony
+  echo "- chronyd configuration updated."
 fi
 
 echo "2. Joining FreeIPA domain $DOMAIN..."
