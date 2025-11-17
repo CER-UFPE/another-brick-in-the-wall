@@ -130,6 +130,13 @@ if command -v dnf &> /dev/null; then
     # RHEL/CentOS/Fedora
 	dnf update -y
     dnf install -y freeipa-client krb5-workstation sssd oddjob oddjob-mkhomedir
+
+	# Inicia e habilita oddjobd
+	systemctl enable --now oddjobd
+	
+	# Habilita sssd
+	systemctl enable --now sssd
+	
 elif command -v apt-get &> /dev/null; then
     # Debian/Ubuntu
     apt-get update -y
@@ -165,3 +172,6 @@ ipa-client-install \
       --ntp-pool a.st1.ntp.br
 
 echo "- FreeIPA join completed."
+
+# Reinicia o host
+sudo reboot
