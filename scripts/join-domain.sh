@@ -128,10 +128,11 @@ echo "1. Installing IPA client..."
 
 if command -v dnf &> /dev/null; then
     # RHEL/CentOS/Fedora
-    dnf install -y freeipa-client
+	dnf update -y
+    dnf install -y freeipa-client krb5-workstation sssd oddjob oddjob-mkhomedir
 elif command -v apt-get &> /dev/null; then
     # Debian/Ubuntu
-    apt-get update
+    apt-get update -y
     apt-get install -y freeipa-client
 else
     echo "Error: Unsupported distribution. Neither dnf nor apt-get found." >&2
