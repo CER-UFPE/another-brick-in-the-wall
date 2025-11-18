@@ -32,7 +32,7 @@ fi
 #   --ipa-adm-pwd <PASSWORD> Ex: SecretPassword123
 #   -h|--help                Ajuda
 usage() {
-  echo "Usage: sudo $0 [--domain <DOMAIN>] [--server <SERVER>] [--realm <REALM>] [--ipa-adm-pwd <PASSWORD>]"
+  echo "Usage: sudo $0 [--domain <DOMAIN>] [--server <SERVER>] [--realm <REALM>] [--adm-user <ADM-USER>] [--ipa-adm-pwd <PASSWORD>]"
   exit 1
 }
 
@@ -50,6 +50,10 @@ while [[ $# -gt 0 ]]; do
       REALM="$2"
       shift 2
       ;;
+	--adm-user)
+      ADM_USER="$2"
+      shift 2
+      ;;  
     --ipa-adm-pwd)
       IPA_ADM_PWD="$2"
       shift 2
@@ -67,6 +71,7 @@ done
 DOMAIN=""
 SERVER="" # iam.cer.ufpe.br
 REALM=""
+ADM_USER=""
 IPA_ADM_PWD=""
 
 while [ -z "${DOMAIN:-}" ]; do
@@ -93,6 +98,13 @@ while [ -z "${REALM:-}" ]; do
     fi
 done
 
+while [ -z "${ADM_USER:-}" ]; do
+    read -r -p "- Enter a IPA Admin Username (e.g., admin): " ADM_USER
+    if [ -z "$ADM_USER" ]; then
+        echo "Error: IPA Admin Username cannot be empty." >&2
+    fi
+done
+
 while [ -z "${IPA_ADM_PWD:-}" ]; do
     read -r -s -p "- Enter the IPA admin password: " IPA_ADM_PWD
     echo
@@ -110,6 +122,7 @@ echo "The following information has been collected:"
 echo "- Domain: $DOMAIN"
 echo "- Server: $SERVER"
 echo "- Realm: $REALM"
+echo "- IPA Admin Username: $ADM_USER"
 echo "- IPA Admin Password: [HIDDEN]"
 echo "--------------------------------------------------------------"
 read -r -p "Is this information CORRECT? (y/n): " CONFIRM
@@ -166,7 +179,7 @@ ipa-client-install \
 	  --realm="$REALM" \
 	  --mkhomedir \
 	  --force-join \
-	  --principal=admin \
+	  --principal="$ADM_USER" \
 	  --password="$IPA_ADM_PWD" \
 	  --unattended \
       --ntp-pool a.st1.ntp.br
