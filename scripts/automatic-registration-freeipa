@@ -1,0 +1,390 @@
+import pandas as pd
+import subprocess
+import unidecode
+import sys
+import os
+import random
+import string
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+
+# --- CONFIGURAÇÕES GERAIS ---
+# ATENÇÃO: O SCRIPT ESPERA ENCONTRAR ESTE ARQUIVO NA MESMA PASTA.
+# Você deve salvar o download do Forms e renomear para este nome.
+ARQUIVO_EXCEL_INPUT = 'cer-ufpe_user_registry (respostas).xlsx' 
+LOCAL_OUTPUT_FILE = 'usuarios_cadastrados_local.xlsx' # Cópia local para sua referência
+
+GRUPO_ALVO = 'cer-user' 
+
+# Lista de cargos para adicionar ao GRUPO_ALVO. 
+CARGOS_PARA_GRUPO = [
+    'docente', 
+    'aluno de doutorado', 
+    'aluno de mestrado', 
+    'aluno de ic', 
+    'aluno de graduação', 
+    'tae', 
+    'pesquisador/colaborador'
+]
+
+# --- CONFIGURAÇÕES DE AUTOMACAO ---
+# Coluna usada para marcar o status de aprovação (usado apenas no filtro)
+STATUS_COLUNA = 'Status IPA'
+# Arquivo local para registrar logins já processados com sucesso. ESSENCIAL para evitar repetição.
+PROCESSED_LOG_FILE = 'processed_users.log' 
+
+# Status:
+STATUS_OK = ['Autorizado', 'autorizado', 'AUTORIZADO'] # Status aceitos para aprovação
+
+# Lista de preposições para ignorar na geração das iniciais
+PREPOSICOES_IGNORADAS = ['da', 'de', 'di', 'do', 'du', 'das', 'des', 'dis', 'dos', 'dus', 'e']
+
+# --- CONFIGURAÇÕES DE EMAIL (PREENCHA ESTA SEÇÃO!) ---
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587                          
+SMTP_EMAIL = '<EMAIL DO REMETENTE>' # SEU EMAIL REMETENTE REAL
+SMTP_PASSWORD = '<SENHA DO APP>'  # SUA SENHA DE APP REAL
+# ----------------------------------------------------
+
+# --- FUNÇÕES DE LOG LOCAL ---
+
+def load_processed_users():
+    """Carrega a lista de logins já processados do arquivo de log local."""
+    if not os.path.exists(PROCESSED_LOG_FILE):
+        return set()
+    try:
+        with open(PROCESSED_LOG_FILE, 'r') as f:
+            # Usa set para buscas rapidas
+            return {line.strip() for line in f if line.strip()}
+    except Exception as e:
+        print(f"[!] ERRO ao carregar log de processados: {e}")
+        return set()
+
+def log_processed_user(user_login):
+    """Adiciona o login do usuario ao arquivo de log local."""
+    try:
+        with open(PROCESSED_LOG_FILE, 'a') as f:
+            f.write(f"{user_login}\n")
+        print(f" [LOG] Usuário {user_login} registrado no log local para evitar repetição.")
+    except Exception as e:
+        print(f"[!] ERRO FATAL ao registrar no log local: {e}")
+
+
+# --- FUNÇÕES GERAIS ---
+
+def gerar_senha_aleatoria(length=12):
+    """Gera uma senha aleatória e segura."""
+    letras = string.ascii_letters
+    digitos = string.digits
+    pontuacao = string.punctuation
+    caracteres = letras + digitos + pontuacao
+    
+    senha = [
+        random.choice(string.ascii_lowercase),
+        random.choice(string.ascii_uppercase),
+        random.choice(digitos),
+        random.choice(pontuacao)
+    ]
+    
+    senha += random.choices(caracteres, k=length - 4)
+    random.shuffle(senha)
+    return "".join(senha)
+
+def enviar_email_novo_usuario(destinatario, nome_completo, login, senha):
+    """Envia um email ao novo usuario com suas credenciais."""
+    
+    # Corpo do email atualizado com as informações da UFPE
+    corpo_email = f"""
+    Olá, {nome_completo},
+
+    Sua conta no sistema FreeIPA do CER-UFPE foi criada com sucesso!
+
+    Credenciais de Acesso:
+    Login (UID): {login}
+    Senha Temporária: {senha}
+
+    IMPORTANTE:
+    Por motivos de segurança, sua senha atual é temporária e já está marcada como expirada. Você DEVE realizar o primeiro login (Via WEB) no iam.cer.ufpe.br e trocar sua senha imediatamente.
+
+    Este e-mail é gerado automaticamente pelo nosso sistema de gerenciamento. Por favor, não o responda.
+    Em caso de dúvidas ou problemas no acesso, entre em contato com o suporte - CER.
+
+    Atenciosamente,
+    Suporte - CER-UFPE
+    """
+
+    msg = MIMEText(corpo_email, 'plain', 'utf-8')
+    msg['Subject'] = 'Conta de Usuário FreeIPA Criada - Acesso Inicial'
+    msg['From'] = SMTP_EMAIL
+    msg['To'] = destinatario
+
+    print(f" -> Tentando enviar email para {destinatario}...")
+    try:
+        context = ssl.create_default_context()
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls(context=context) 
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            server.sendmail(SMTP_EMAIL, destinatario, msg.as_string())
+        
+        print(f" [OK] Email enviado com sucesso para {destinatario}.")
+        return True
+    
+    except Exception as e:
+        print(f" [!] ERRO ao enviar email para {destinatario}: Verifique as configuracoes de SMTP. Erro: {e}")
+        return False
+
+def limpar_texto(texto):
+    """Remove acentos e espaços extras."""
+    if not isinstance(texto, str):
+        return ""
+    return unidecode.unidecode(texto.strip())
+
+def gerar_iniciais_login(nome_completo):
+    """Gera iniciais e login."""
+    nome_limpo = limpar_texto(nome_completo)
+    partes = nome_limpo.split()
+    iniciais_lista = []
+    
+    for parte in partes:
+        if parte.lower() not in PREPOSICOES_IGNORADAS:
+            iniciais_lista.append(parte[0])
+            
+    iniciais_upper = "".join(iniciais_lista).upper()
+    login_lower = iniciais_upper.lower()
+    
+    return iniciais_upper, login_lower
+
+def separar_nome_sobrenome(nome_completo):
+    """Separa First e Last name."""
+    partes = nome_completo.strip().split()
+    
+    if not partes:
+        return "", ""
+    if len(partes) == 1:
+        return partes[0], "." 
+    
+    first = partes[0]
+    last = partes[-1]
+    return first, last
+
+def executar_comando_ipa(comando, input_text=None):
+    """Executa um comando no shell e retorna sucesso/erro."""
+    try:
+        resultado = subprocess.run(
+            comando,
+            input=input_text,
+            text=True,
+            shell=True,
+            capture_output=True
+        )
+        return resultado
+    except Exception as e:
+        print(f"Erro ao executar comando: {e}")
+        return None
+
+def main():
+    
+    # 0. CARREGA O LOG DE USUÁRIOS JÁ PROCESSADOS
+    processed_users = load_processed_users()
+    print(f"[LOG] Encontrados {len(processed_users)} usuários já processados no log local.")
+
+    print(f"Lendo dados do arquivo local: {ARQUIVO_EXCEL_INPUT}...")
+    try:
+        # Carrega o arquivo local
+        df = pd.read_excel(ARQUIVO_EXCEL_INPUT, header=0) 
+        df.dropna(how='all', inplace=True) 
+        
+    except FileNotFoundError:
+        print(f"ERRO: Arquivo '{ARQUIVO_EXCEL_INPUT}' não encontrado.")
+        print("Certifique-se de que o arquivo está na pasta correta e com o nome exato.")
+        return
+    except Exception as e:
+        print(f"ERRO ao ler o arquivo Excel: {e}")
+        return
+
+    # 1. PREPARAÇÃO DA TABELA (garante coluna de status e remove espaços)
+    if STATUS_COLUNA not in df.columns:
+        print(f"ADVERTENCIA: Coluna '{STATUS_COLUNA}' não encontrada. Assumindo que todas as linhas precisam de verificação.")
+        df = df.reindex(columns=df.columns.tolist() + [STATUS_COLUNA], fill_value='Autorizado') # Assume 'Autorizado' para todas
+    
+    # Garante que a coluna de status está limpa para comparação
+    df[STATUS_COLUNA] = df[STATUS_COLUNA].astype(str).str.strip()
+        
+    # 2. FILTRAGEM
+    # Filtra: Apenas usuários com status de aprovação (usando .isin() para a lista de STATUS_OK)
+    df_aprovados = df[df[STATUS_COLUNA].isin(STATUS_OK)]
+    
+    print(f"Total de registros lidos e aprovados: {len(df_aprovados)}")
+    
+    sucessos = 0
+    erros = 0
+    total_a_processar = 0
+    
+    # Confirmação de quantos usuários serão processados
+    print(f"Iniciando processamento de {len(df_aprovados)} usuários aprovados para verificação e processamento.")
+
+    # 3. PROCESSAMENTO DOS USUÁRIOS PENDENTES
+    for index, row in df_aprovados.iterrows():
+        # Acesso às colunas pelos nomes exatos do cabeçalho do Forms
+        full_name = str(row['Nome completo']).strip()
+        nome_social = str(row['Nome Social']).strip()
+        # >>> LENDO DA COLUNA 'Email' <<<
+        email = str(row['Email']).strip() 
+        contato = str(row['Contato (Telefone/Whatsapp):']).strip()
+        job_title = str(row['Vínculo com o CER:']).strip()
+        job_title_lower = job_title.lower() 
+
+        # 3.1 GERAÇÃO DO LOGIN, NOME E VERIFICAÇÃO LOCAL
+        # MOVE A SEPARAÇÃO DE NOME PARA O TOPO para ser usado no Display Name condicional
+        first_name, last_name = separar_nome_sobrenome(full_name) 
+
+        iniciais, user_login = gerar_iniciais_login(full_name)
+
+        if user_login in processed_users:
+            # Usuário já está no log local. PULA!
+            print(f"\n[PULO] Usuário {full_name} ({user_login}) já está no log local. Pulando reprocessamento.")
+            continue
+            
+        # O usuário é novo e precisa ser processado
+        total_a_processar += 1
+        print(f"\nProcessando NOVO USUÁRIO (Linha {df.index.get_loc(index) + 2}): {full_name}...") 
+        print(f" -> Login Gerado: {user_login}")
+        
+        # 3.2 LÓGICA CONDICIONAL DE DISPLAY NAME (Nome Social)
+        # Verifica se o campo Nome Social não está vazio
+        if nome_social and nome_social != 'nan': 
+            display_name = nome_social
+            print(f" -> Nome Social detectado: Usando '{display_name}' como Display Name.")
+        else:
+            # Apenas o primeiro e último nome como Display Name
+            display_name = f"{first_name} {last_name}"
+            print(f" -> Nome Social vazio. Usando Primeiro e Último nome: '{display_name}'.")
+            
+        gecos = display_name
+        
+        # 3.3 DETALHES E SENHA
+        nova_senha = gerar_senha_aleatoria()
+
+        # 3.4 COMANDO IPA USER-ADD
+        # Adiciona o --phone se o campo de contato tiver algum valor
+        cmd_add = (
+            f"echo '{nova_senha}' | ipa user-add {user_login} " 
+            f"--first='{first_name}' "
+            f"--last='{last_name}' "
+            f"--cn='{full_name}' "
+            f"--displayname='{display_name}' "
+            f"--email='{email}' " 
+            f"--gecos='{gecos}' "
+            f"--title='{job_title}' "
+            # Adiciona o --phone SE houver um valor de contato e não for 'nan'
+            + (f" --phone='{contato}'" if contato and contato != 'nan' else "") 
+            + " --password"
+        )
+
+        res_add = executar_comando_ipa(cmd_add)
+        user_processed = False
+
+        if res_add.returncode != 0:
+            if "already exists" in res_add.stderr:
+                print(" [INFO] Usuário já existia no FreeIPA. Tratando como sucesso para fins de log local.")
+                user_processed = True
+            else:
+                print(f" [!] ERRO FATAL na criacao do usuario {user_login}: {res_add.stderr.strip()}")
+                erros += 1
+                continue 
+        else:
+            print(" [OK] Usuário criado.")
+            sucessos += 1
+            user_processed = True
+            
+            # 4. Expirar a senha e enviar email SOMENTE SE FOI CRIADO AGORA
+            cmd_expire = f"ipa user-mod {user_login} --password-expire"
+            executar_comando_ipa(cmd_expire)
+            print(" [OK] Senha expirada (troca obrigatória configurada).")
+            
+            # 4.5 ENVIAR O EMAIL COM AS CREDENCIAIS (DIAGNÓSTICO INSERIDO AQUI)
+            print(f" [DIAG] Destinatário para envio de email: {email}") 
+            
+            if email: # Garante que o email não está vazio ou nulo
+                enviar_email_novo_usuario(email, full_name, user_login, nova_senha)
+            else:
+                print(" [ADVERTENCIA] E-mail do destinatário vazio. Envio de e-mail pulado.")
+
+
+        # 5. REGISTRO NO LOG LOCAL E TRATAMENTO DE GRUPOS (APENAS SE PROCESSADO)
+        if user_processed:
+            log_processed_user(user_login) # REGISTRA O SUCESSO NO ARQUIVO LOCAL
+            
+            if job_title_lower in CARGOS_PARA_GRUPO:
+                print(f" -> Cargo '{job_title}' detectado. Adicionando ao grupo '{GRUPO_ALVO}' e removendo de 'ipausers'...")
+                
+                # 5.1 Adicionar ao novo grupo
+                cmd_group_add = f"ipa group-add-member {GRUPO_ALVO} --users={user_login}"
+                res_group_add = executar_comando_ipa(cmd_group_add)
+                
+                if res_group_add.returncode == 0:
+                    print(f" [OK] Adicionado ao grupo {GRUPO_ALVO}.")
+                elif "already a member" in res_group_add.stderr:
+                    print(f" [INFO] Já era membro do grupo {GRUPO_ALVO}.")
+                else:
+                    print(f" [!] Falha ao adicionar ao grupo {GRUPO_ALVO}: {res_group_add.stderr.strip()}")
+                
+                # 5.2 Remover do grupo padrão (ipausers)
+                cmd_group_remove = f"ipa group-remove-member ipausers --users={user_login}"
+                res_group_remove = executar_comando_ipa(cmd_group_remove)
+                
+                if res_group_remove.returncode == 0:
+                    print(f" [OK] Removido do grupo ipausers.")
+                elif "not a member" not in res_group_remove.stderr and res_group_remove.returncode != 0:
+                    print(f" [!] Falha ao remover de ipausers: {res_group_remove.stderr.strip()}")
+            else:
+                print(f" -> Cargo '{job_title}' não requer grupo especial.")
+
+    print(f"\n--- RESUMO ---")
+    print(f"Novos Cadastros Criados: {sucessos}")
+    print(f"Total de Erros/Pulos: {erros}")
+
+if __name__ == "__main__":
+    # Garante que as dependencias estao disponiveis
+    try:
+        import pandas as pd
+        import openpyxl 
+        import smtplib 
+        import random
+        import string
+        import unidecode
+    except ImportError:
+        print("ERRO: As bibliotecas 'pandas', 'openpyxl', e 'unidecode' são necessárias.")
+        print("Instale usando: pip install pandas openpyxl unidecode")
+        sys.exit(1)
+        
+    # LOGICA DE AUTENTICAÇÃO PARA O CRON 
+    KEYTAB_PATH = '/etc/ipa/cron-admin.keytab'
+    KINIT_USER = 'admin' 
+
+    print("-" * 50)
+    print("INICIANDO SCRIPT DE SINCRONIZACAO IPA")
+    
+    # 1. Tenta autenticação Kerberos via Keytab
+    print(f"Tentando autenticação Kerberos via Keytab para o usuario {KINIT_USER}...")
+    kinit_cmd = f"kinit -k -t {KEYTAB_PATH} {KINIT_USER}"
+    kinit_res = subprocess.run(kinit_cmd, shell=True, capture_output=True)
+
+    if kinit_res.returncode != 0:
+        print(" [ERRO] Falha na autenticação Keytab.")
+        print(" Certifique-se de que o arquivo Keytab (/etc/ipa/cron-admin.keytab) existe e tem permissoes corretas.")
+        klist_cmd = "klist"
+        klist_res = subprocess.run(klist_cmd, shell=True, capture_output=True)
+        if klist_res.returncode != 0:
+            print(" [ERRO] Nenhum ticket Kerberos manual encontrado. O script não pode continuar.")
+            sys.exit(1)
+        else:
+            print(" [INFO] Falha no Keytab, mas usando ticket Kerberos existente (kinit manual).")
+    else:
+        print(" [OK] Autenticação Keytab bem sucedida.")
+        
+    print("-" * 50)
+
+    main()
